@@ -1,0 +1,4 @@
+# Custom sensor drivers configuration
+if SENSOR
+rsource "as5047p/Kconfig"
+endif # SENSOR

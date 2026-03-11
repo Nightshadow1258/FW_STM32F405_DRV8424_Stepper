@@ -1,0 +1,191 @@
+/*
+ * Copyright (c) 2026 Paul Reisch
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/f4/stm32f405Xg.dtsi>
+#include <st/f4/stm32f405rgtx-pinctrl.dtsi>
+#include "stm32f405_stepper.dtsi"
+
+
+/ {
+	model = "STM32F405 stepper";
+	compatible = "st,stm32f405";
+
+	chosen {
+		zephyr,console = &usart3;
+		zephyr,shell-uart = &usart3;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,dtcm = &ccm0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led: led {
+			gpios = <&gpioc 1 GPIO_ACTIVE_HIGH>;
+			label = "User LED";
+		};
+		as5047p_cs: as5047p_cs {
+			gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+			label = "AS5047P_CS";
+		};
+	};
+
+	/* Define the Index Pin as a GPIO for Interrupt use */
+	encoder_index: encoder_index {
+		compatible = "gpio-keys";
+		index_pin: index_pin {
+			gpios = <&gpioa 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+			label = "Encoder Index";
+		};
+	};
+	trigger_signal {
+		compatible = "gpio-keys";
+		meas_trigger: meas_trigger {
+			gpios = <&gpiob 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Measurement Trigger";
+		};
+	};
+
+	pwm_leds {
+		compatible = "pwm-leds";
+		pwm_led0: led_pwm_0 {
+			pwms = <&pwm2 3 PWM_MSEC(1000) PWM_POLARITY_INVERTED>; // pwmtimer channel_number pwmperiod polarity
+			label = "Blue PWM LED";
+		};
+	};
+
+	aliases {
+		led0 = &led;
+		pwm-led0 = &pwm_led0;
+		meas-trigger = &meas_trigger;
+	};
+};
+
+&clk_lsi {
+	status = "okay";
+};
+
+&clk_hse {
+	clock-frequency = <DT_FREQ_M(16)>;
+	status = "okay";
+};
+
+&pll {
+	div-m = <8>;
+	mul-n = <168>;
+	div-p = <2>;
+	div-q = <7>;
+	clocks = <&clk_hse>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(168)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <4>;
+	apb2-prescaler = <2>;
+};
+
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_scl_pb6 &i2c1_sda_pb7>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&spi1_nss_pa15 {
+	slew-rate = "very-high-speed";
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_sck_pa5 &spi1_miso_pa6 &spi1_mosi_pa7>;
+	pinctrl-names = "default";
+	// cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>; CS was not toggled
+	// keep this for later testing if i want to make a driver package for the this sensor else delete it at the end.
+	// as5047p@0 {
+		//     status = "okay";
+		//     compatible = "ams,as5047p";
+		//     reg = <0>;
+		//     spi-max-frequency = <10000000>;
+	// };
+};
+
+&spi2 {
+	pinctrl-0 = <&spi2_sck_pb13 &spi2_miso_pb14 &spi2_mosi_pb15>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK(APB1, 28)>,
+			 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
+	status = "okay";
+};
+
+zephyr_udc0: &usbotg_fs {
+	pinctrl-0 = <&usb_otg_fs_dm_pa11 &usb_otg_fs_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+
+&pinctrl {
+	pwm_out_pa2: pwm_out_pa2 {
+		/* PA2 on AF1 is TIM2_CH3 */
+		pinmux = <STM32_PINMUX('A', 2, AF1)>;
+		bias-pull-up;
+		drive-push-pull;
+		slew-rate = "very-high-speed";
+	};
+};
+
+&timers2 {
+	status = "okay";
+	pwm2: pwm {
+		status = "okay";
+		pinctrl-0 = <&pwm_out_pa2>;
+		pinctrl-names = "default";
+		#pwm-cells = <3>;
+	};
+};
+
+&timers4 {
+	status = "okay";
+	qdec: qdec {
+		status = "okay";
+		pinctrl-0 = <&tim4_ch1_pb6 &tim4_ch2_pb7>;
+		pinctrl-names = "default";
+		st,counts-per-revolution = <4000>;
+		st,input-filter-level = <2>; // default is 0
+	};
+};
+
+
+&pinctrl {
+	spi1_sck_pa5: spi1_sck_pa5 {
+		pinmux = <STM32_PINMUX('A', 5, AF5)>;
+		bias-pull-down;
+	};
+	spi1_miso_pa6: spi1_miso_pa6 {
+		pinmux = <STM32_PINMUX('A', 6, AF5)>;
+		bias-pull-up;
+	};
+	spi1_mosi_pa7: spi1_mosi_pa7 {
+		pinmux = <STM32_PINMUX('A', 7, AF5)>;
+		bias-pull-down;
+	};
+};

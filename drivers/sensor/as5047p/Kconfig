@@ -1,0 +1,10 @@
+# Copyright (c) 2025
+# SPDX-License-Identifier: Apache-2.0
+
+config AS5047P
+    bool "AMS AS5047P Magnetic Rotary Encoder"
+    default y
+    #depends on DT_HAS_AS5047P_ENABLED
+    select SPI
+    help
+      Enable driver for the AS5047P high-resolution rotary position sensor.

@@ -1,0 +1,6 @@
+board:
+  name: stm32f405_stepper
+  full_name: STM32F405 Stepper
+  vendor: custom
+  socs:
+    - name: stm32f405xx

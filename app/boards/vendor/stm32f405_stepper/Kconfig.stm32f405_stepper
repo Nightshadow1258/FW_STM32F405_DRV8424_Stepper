@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Paul Reisch
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_STM32F405_STEPPER
+	select SOC_STM32F405XX

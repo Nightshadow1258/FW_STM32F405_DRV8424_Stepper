@@ -1,0 +1,13 @@
+identifier: stm32f405_stepper
+name: STM32F405 Stepper
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 128
+flash: 1024
+supported:
+  - i2c
+  - spi
+vendor: custom
