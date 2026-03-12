@@ -18,5 +18,5 @@ project(app LANGUAGES C)
 
 target_sources(app PRIVATE 
     src/main.c
-    src/as5047p.c
+    # add additional source files here
     )
