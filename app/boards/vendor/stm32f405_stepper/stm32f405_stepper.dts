@@ -59,6 +59,40 @@
 //		};
 //	};
 
+	drv8424p_motors: drv8424p_motors {
+		compatible = "pwm-leds";
+		status = "okay";
+
+		ain1: ain1 {
+			pwms = <&pwm8 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "MOTOR_AIN1";
+		};
+		ain2: ain2 {
+			pwms = <&pwm8 2 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "MOTOR_AIN2";
+		};
+		bin1: bin1 {
+			pwms = <&pwm8 3 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "MOTOR_BIN1";
+		};
+		bin2: bin2 {
+			pwms = <&pwm8 4 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "MOTOR_BIN2";
+		};
+	};
+
+	drv8424_signals {
+			compatible = "gpio-keys";
+			drv_sleep: drv_sleep {
+				gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
+				label = "DRV8424_SLEEP";
+			};
+			drv_fault: drv_fault {
+				gpios = <&gpiob 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+				label = "DRV8424_FAULT";
+			};
+		};
+
 	aliases {
 		led0 = &led;
 	};
@@ -142,48 +176,46 @@ zephyr_udc0: &usbotg_fs {
 
 
 &pinctrl {
-	pwm_out_pa2: pwm_out_pa2 {
-		/* PA2 on AF1 is TIM2_CH3 */
-		pinmux = <STM32_PINMUX('A', 2, AF1)>;
-		bias-pull-up;
-		drive-push-pull;
-		slew-rate = "very-high-speed";
-	};
+    /* TIM8 PWM Pins */
+    tim8_ch1_pc6: tim8_ch1_pc6 {
+        pinmux = <STM32_PINMUX('C', 6, AF3)>;
+        drive-push-pull;
+    };
+    tim8_ch2_pc7: tim8_ch2_pc7 {
+        pinmux = <STM32_PINMUX('C', 7, AF3)>;
+        drive-push-pull;
+    };
+    tim8_ch3_pc8: tim8_ch3_pc8 {
+        pinmux = <STM32_PINMUX('C', 8, AF3)>;
+        drive-push-pull;
+    };
+    tim8_ch4_pc9: tim8_ch4_pc9 {
+        pinmux = <STM32_PINMUX('C', 9, AF3)>;
+        drive-push-pull;
+    };
 };
 
-&timers2 {
-	status = "okay";
-	pwm2: pwm {
-		status = "okay";
-		pinctrl-0 = <&pwm_out_pa2>;
-		pinctrl-names = "default";
-		#pwm-cells = <3>;
-	};
+&timers8 {
+    status = "okay";
+    pwm8: pwm {
+        status = "okay";
+        pinctrl-0 = <&tim8_ch1_pc6 &tim8_ch2_pc7 &tim8_ch3_pc8 &tim8_ch4_pc9>;
+        pinctrl-names = "default";
+    };
 };
 
-&timers4 {
-	status = "okay";
-	qdec: qdec {
-		status = "okay";
-		pinctrl-0 = <&tim4_ch1_pb6 &tim4_ch2_pb7>;
-		pinctrl-names = "default";
-		st,counts-per-revolution = <4000>;
-		st,input-filter-level = <2>; // default is 0
-	};
-};
 
+&dac1 {
+    status = "okay";
+    pinctrl-0 = <&dac_out1_pa4 &dac_out2_pa5>;
+    pinctrl-names = "default";
+};
 
 &pinctrl {
-	spi1_sck_pa5: spi1_sck_pa5 {
-		pinmux = <STM32_PINMUX('A', 5, AF5)>;
-		bias-pull-down;
-	};
-	spi1_miso_pa6: spi1_miso_pa6 {
-		pinmux = <STM32_PINMUX('A', 6, AF5)>;
-		bias-pull-up;
-	};
-	spi1_mosi_pa7: spi1_mosi_pa7 {
-		pinmux = <STM32_PINMUX('A', 7, AF5)>;
-		bias-pull-down;
-	};
+    dac_out1_pa4: dac_out1_pa4 {
+        pinmux = <STM32_PINMUX('A', 4, ANALOG)>;
+    };
+    dac_out2_pa5: dac_out2_pa5 {
+        pinmux = <STM32_PINMUX('A', 5, ANALOG)>;
+    };
 };
