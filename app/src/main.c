@@ -132,7 +132,11 @@ K_THREAD_DEFINE(gpio_led_tid, GPIO_LED_THREAD_STACK_SIZE,
 int main(void)
 {
 	/* DC Motor Driver Control*/
-	// if (!pwm_is_ready_dt(&drv_ain1)) return 0;
+	if (!pwm_is_ready_dt(&drv_ain1) || !pwm_is_ready_dt(&drv_ain2) ||
+	    !pwm_is_ready_dt(&drv_bin1) || !pwm_is_ready_dt(&drv_bin2)) {
+		printk("PWM devices not ready\n");
+		return 0;
+	}
 
 	// /* Example: Run Motor A as DC at 50% Duty Cycle */
 	// set_dc_motor(&drv_ain1, &drv_ain2, drv_ain1.period / 2);
@@ -140,18 +144,20 @@ int main(void)
 	// /* Example: Run Motor B as DC at 25% Duty Cycle */
 	// set_dc_motor(&drv_bin1, &drv_bin2, drv_bin1.period / 4);
 
-	if (!device_is_ready(dac_dev)) 
+	if (!device_is_ready(dac_dev)) {
+		printk("DAC device not ready\n");
 		return 0;
+	}
 
 	dac_channel_setup(dac_dev, &dac_ch1_cfg);
 	dac_channel_setup(dac_dev, &dac_ch2_cfg);
 
-	set_motor_current(800); /* Set motor currents to 800mV (0.8A) */
+	set_motor_current(1500); /* Set motor currents to ~1.5A */
 
-	//
 	if (!gpio_is_ready_dt(&sleep_spec) || !gpio_is_ready_dt(&fault_spec)) {
-			return 0;
-		}
+		printk("GPIO devices not ready\n");
+		return 0;
+	}
 
     /* Configure Pins */
     gpio_pin_configure_dt(&sleep_spec, GPIO_OUTPUT_ACTIVE);
@@ -162,26 +168,37 @@ int main(void)
     gpio_init_callback(&fault_cb_data, fault_handler, BIT(fault_spec.pin));
     gpio_add_callback(fault_spec.port, &fault_cb_data);
 
+	k_msleep(500); /* Short delay to ensure everything is initialized */
     /* Wake up the driver (nSLEEP High) */
     gpio_pin_set_dt(&sleep_spec, 1);
     
     /* Wait for device wakeup time (approx 1ms) */
     k_msleep(1);
-
+ 
 
 	printk("System Ready! LED should be blinking\n");
 
 	int current_step = 0;
-	uint32_t duty_cycle = drv_ain1.period / 4; /* 25% power */
+	uint32_t duty_cycle = drv_ain1.period; /* 100% duty cycle for full power */
+	printk("Duty Cycle: %lu ns (100%%)\n", (unsigned long)duty_cycle);
+
+	static int step_delay = 200; // Start at 200ms
 
 	while (1)
 	{
+		int fault_active = gpio_pin_get_dt(&fault_spec);
+		if (fault_active) {
+			printk("Fault detected, stopping motor\n");
+		}
+
 		apply_step(current_step, duty_cycle);
 
 		current_step = (current_step + 1) % 4;
+		/* Delay determines speed - start slow and ramp up */
 
-		/* Delay determines speed */
-		k_msleep(10);
+		if (step_delay > 50) step_delay -= 1; // Ramp down to 50ms -> 1.8 degree per step at 50ms per step = 36 degree per second
+		//printk("Current Step: %d, Step Delay: %d us\n", current_step, step_delay, );
+		k_usleep(step_delay);
 	}
 
 	return 0;
