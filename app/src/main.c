@@ -33,42 +33,45 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 
 // Motor control stuff
-static const struct pwm_dt_spec drv_ain1 = PWM_DT_SPEC_GET(DT_NODELABEL(ain1));
-static const struct pwm_dt_spec drv_ain2 = PWM_DT_SPEC_GET(DT_NODELABEL(ain2));
-static const struct pwm_dt_spec drv_bin1 = PWM_DT_SPEC_GET(DT_NODELABEL(bin1));
-static const struct pwm_dt_spec drv_bin2 = PWM_DT_SPEC_GET(DT_NODELABEL(bin2));
+static const struct gpio_dt_spec enable_pin = GPIO_DT_SPEC_GET(DT_NODELABEL(drv_enable), gpios);
+static const struct gpio_dt_spec dir_pin    = GPIO_DT_SPEC_GET(DT_NODELABEL(drv_dir), gpios);
+static const struct gpio_dt_spec mode1_pin  = GPIO_DT_SPEC_GET(DT_NODELABEL(drv_mode1), gpios);
+static const struct gpio_dt_spec mode0_pin  = GPIO_DT_SPEC_GET(DT_NODELABEL(drv_mode0), gpios);
 
-/* Helper for DC Motor Control */
-void set_dc_motor(const struct pwm_dt_spec *p1, const struct pwm_dt_spec *p2, uint32_t pulse)
+static const struct pwm_dt_spec step_pwm    = PWM_DT_SPEC_GET(DT_NODELABEL(drv_step));
+
+
+void init_motor_driver(void)
 {
-	pwm_set_pulse_dt(p1, pulse);
-	pwm_set_pulse_dt(p2, 0);
+    /* Configure GPIOs as output */
+    gpio_pin_configure_dt(&enable_pin, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_configure_dt(&dir_pin, GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure_dt(&mode1_pin, GPIO_OUTPUT_ACTIVE); // M1 High
+    gpio_pin_configure_dt(&mode0_pin, GPIO_OUTPUT_ACTIVE); // M0 High
+
+    /* Both M0 and M1 are now High, setting 1/16 microstepping */
 }
 
-/* Helper for Stepper Motor Control */
-/* Full Step Sequence Table (AIN1, AIN2, BIN1, BIN2) */
-static const uint8_t step_table[4][4] = {
-	{1, 0, 1, 0}, /* Step 0: A+ B+ */
-	{0, 1, 1, 0}, /* Step 1: A- B+ */
-	{0, 1, 0, 1}, /* Step 2: A- B- */
-	{1, 0, 0, 1}  /* Step 3: A+ B- */
-};
-
-void apply_step(int step_index, uint32_t pulse_width)
+void set_motor_speed(uint32_t frequency_hz)
 {
-	pwm_set_pulse_dt(&drv_ain1, step_table[step_index][0] ? pulse_width : 0);
-	pwm_set_pulse_dt(&drv_ain2, step_table[step_index][1] ? pulse_width : 0);
-	pwm_set_pulse_dt(&drv_bin1, step_table[step_index][2] ? pulse_width : 0);
-	pwm_set_pulse_dt(&drv_bin2, step_table[step_index][3] ? pulse_width : 0);
+    if (frequency_hz == 0) {
+        pwm_set_pulse_dt(&step_pwm, 0);
+        return;
+    }
+
+    uint32_t period_ns = 1000000000ULL / frequency_hz;
+    uint32_t pulse_ns = period_ns / 2;
+
+    pwm_set_dt(&step_pwm, period_ns, pulse_ns);
 }
 
 // DAC Stuff
 static const struct device *dac_dev = DEVICE_DT_GET(DT_NODELABEL(dac1));
 
 /* Configuration for the two DAC channels */
-static const struct dac_channel_cfg dac_ch1_cfg = {
-	.channel_id = 1,
-	.resolution = 12};
+// static const struct dac_channel_cfg dac_ch1_cfg = {
+// 	.channel_id = 1,
+// 	.resolution = 12};
 static const struct dac_channel_cfg dac_ch2_cfg = {
 	.channel_id = 2,
 	.resolution = 12};
@@ -78,7 +81,7 @@ void set_motor_current(uint16_t vref_mv)
 	/* STM32 DAC is 12-bit (0-4095). Assuming VDD is 3.3V (3300mV) */
 	uint32_t dac_value = (vref_mv * 4095) / 3300;
 
-	dac_write_value(dac_dev, 1, dac_value);
+	// dac_write_value(dac_dev, 1, dac_value);
 	dac_write_value(dac_dev, 2, dac_value);
 }
 
@@ -101,13 +104,13 @@ void gpio_led_thread_entry(void *p1, void *p2, void *p3)
 
 	if (!gpio_is_ready_dt(&led))
 	{
-		return 0;
+		return;
 	}
 
 	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
 	if (ret < 0)
 	{
-		return 0;
+		return;
 	}
 
 	while (1)
@@ -115,7 +118,7 @@ void gpio_led_thread_entry(void *p1, void *p2, void *p3)
 		ret = gpio_pin_toggle_dt(&led);
 		if (ret < 0)
 		{
-			return 0;
+			return;
 		}
 
 		led_state = !led_state;
@@ -131,13 +134,13 @@ K_THREAD_DEFINE(gpio_led_tid, GPIO_LED_THREAD_STACK_SIZE,
 
 int main(void)
 {
-	/* DC Motor Driver Control*/
-	if (!pwm_is_ready_dt(&drv_ain1) || !pwm_is_ready_dt(&drv_ain2) ||
-	    !pwm_is_ready_dt(&drv_bin1) || !pwm_is_ready_dt(&drv_bin2)) {
-		printk("PWM devices not ready\n");
-		return 0;
-	}
 
+
+	/* Initialize PWM pins to 0% duty cycle (off) to prevent unwanted motor movement */
+	pwm_set_pulse_dt(&dir_pin, 0);
+
+
+	init_motor_driver();
 	// /* Example: Run Motor A as DC at 50% Duty Cycle */
 	// set_dc_motor(&drv_ain1, &drv_ain2, drv_ain1.period / 2);
 
@@ -149,10 +152,9 @@ int main(void)
 		return 0;
 	}
 
-	dac_channel_setup(dac_dev, &dac_ch1_cfg);
 	dac_channel_setup(dac_dev, &dac_ch2_cfg);
 
-	set_motor_current(1500); /* Set motor currents to ~1.5A */
+	set_motor_current(2000); /* Set motor currents to ~1.5V/1.32 = 1136mA */
 
 	if (!gpio_is_ready_dt(&sleep_spec) || !gpio_is_ready_dt(&fault_spec)) {
 		printk("GPIO devices not ready\n");
@@ -178,27 +180,20 @@ int main(void)
 
 	printk("System Ready! LED should be blinking\n");
 
-	int current_step = 0;
-	uint32_t duty_cycle = drv_ain1.period; /* 100% duty cycle for full power */
-	printk("Duty Cycle: %lu ns (100%%)\n", (unsigned long)duty_cycle);
+	/* Start motor at 1000 Hz (1000 steps per second) */
+    set_motor_speed(1000);
 
-	static int step_delay = 200; // Start at 200ms
-
+	/* Test sequence: continuous half-stepping only */
 	while (1)
 	{
 		int fault_active = gpio_pin_get_dt(&fault_spec);
 		if (fault_active) {
 			printk("Fault detected, stopping motor\n");
+			continue;
 		}
-
-		apply_step(current_step, duty_cycle);
-
-		current_step = (current_step + 1) % 4;
-		/* Delay determines speed - start slow and ramp up */
-
-		if (step_delay > 50) step_delay -= 1; // Ramp down to 50ms -> 1.8 degree per step at 50ms per step = 36 degree per second
-		//printk("Current Step: %d, Step Delay: %d us\n", current_step, step_delay, );
-		k_usleep(step_delay);
+		k_sleep(K_MSEC(2000));
+		printk("Toggling direction\n");
+        gpio_pin_toggle_dt(&dir_pin);
 	}
 
 	return 0;

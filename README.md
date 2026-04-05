@@ -1,1 +1,2 @@
-# STM32F405 communicatoin Testing for AS5047P
+# STM32F405 Stepper controller with DRV8424
+
