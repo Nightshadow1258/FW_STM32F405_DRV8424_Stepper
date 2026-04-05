@@ -46,8 +46,13 @@ void init_motor_driver(void)
     /* Configure GPIOs as output */
     gpio_pin_configure_dt(&enable_pin, GPIO_OUTPUT_ACTIVE);
     gpio_pin_configure_dt(&dir_pin, GPIO_OUTPUT_INACTIVE);
-    gpio_pin_configure_dt(&mode1_pin, GPIO_OUTPUT_ACTIVE); // M1 High
-    gpio_pin_configure_dt(&mode0_pin, GPIO_OUTPUT_ACTIVE); // M0 High
+
+
+	/* Set M1 to High Impedance by configuring it as an Input */
+    /* Ensure no internal pull-up/pull-down is active to allow true Hi-Z */
+    gpio_pin_configure_dt(&mode1_pin, GPIO_INPUT);
+	/* M0 must be High for 1/128 mode when M1 is Hi-Z */
+    gpio_pin_configure_dt(&mode0_pin, GPIO_INPUT);
 
     /* Both M0 and M1 are now High, setting 1/16 microstepping */
 }
@@ -181,7 +186,7 @@ int main(void)
 	printk("System Ready! LED should be blinking\n");
 
 	/* Start motor at 1000 Hz (1000 steps per second) */
-    set_motor_speed(1000);
+    set_motor_speed(25600);
 
 	/* Test sequence: continuous half-stepping only */
 	while (1)
