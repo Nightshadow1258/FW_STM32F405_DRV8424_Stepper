@@ -49,7 +49,7 @@ static const struct pwm_dt_spec step_pwm = PWM_DT_SPEC_GET(DT_NODELABEL(drv_step
 void init_motor_driver(void)
 {
 	/* Configure GPIOs as output */
-	
+
 	gpio_pin_configure_dt(&enable_pin, GPIO_OUTPUT_INACTIVE); /* nENABLE is active LOW, so we set it to LOW to enable the driver */
 	gpio_pin_configure_dt(&dir_pin, GPIO_OUTPUT_INACTIVE);
 
@@ -58,6 +58,7 @@ void init_motor_driver(void)
 	gpio_pin_configure_dt(&mode1_pin, GPIO_INPUT);
 	/* M0 must be High for 1/128 mode when M1 is Hi-Z */
 	gpio_pin_configure_dt(&mode0_pin, GPIO_INPUT);
+	gpio_pin_configure_dt(&mode0_pin, GPIO_OUTPUT_ACTIVE);
 
 	/* Both M0 and M1 are now High, setting 1/16 microstepping */
 }
@@ -196,10 +197,10 @@ void gpio_led_thread_entry(void *p1, void *p2, void *p3)
 // 				gpio_led_thread_entry, NULL, NULL, NULL,
 //				GPIO_LED_THREAD_PRIORITY, 0, 0);
 
-//Shell command to manually trigger the process (for testing)
+// Shell command to manually trigger the process (for testing)
 static int cmd_trigger_start(const struct shell *sh, size_t argc, char **argv)
 {
-    shell_print(sh, "Trigger received. Starting process...");
+	shell_print(sh, "Trigger received. Starting process...");
 	gpio_pin_configure_dt(&enable_pin, GPIO_OUTPUT_ACTIVE);
 
 	/* Requirement: Set PA0 HIGH before starting */
@@ -230,13 +231,13 @@ static int cmd_trigger_start(const struct shell *sh, size_t argc, char **argv)
 	move_exact_rotations(TARGET_FREQ);
 
 	k_msleep(10);
-	
+
 	gpio_pin_set_dt(&meas_trigger, GPIO_OUTPUT_INACTIVE);
 	gpio_pin_configure_dt(&enable_pin, GPIO_OUTPUT_INACTIVE);
 
 	k_msleep(100); /* Brief stabilization delay */
-	
-    return 0;
+
+	return 0;
 }
 
 /* Register the command "start_process" */
@@ -244,22 +245,24 @@ SHELL_CMD_REGISTER(start_process, NULL, "Manually trigger the process", cmd_trig
 
 int main(void)
 {
+	printk("Starting DRV8424 Stepper Motor Control Application\n");
+
 	// Use USB CDC ACM for console output
 	const struct device *dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
 	uint32_t dtr = 0;
 
-	if (usb_enable(NULL)) {
+	if (usb_enable(NULL))
+	{
 		return 0;
 	}
 
 	/* Optional: Wait for a terminal connection */
-	while (!dtr) {
+	while (!dtr)
+	{
 		uart_line_ctrl_get(dev, UART_LINE_CTRL_DTR, &dtr);
 		k_sleep(K_MSEC(100));
 	}
-	
-	
-	
+
 	/* Initialize PWM pins to 0% duty cycle (off) to prevent unwanted motor movement */
 	pwm_set_pulse_dt(&step_pwm, 0);
 
@@ -278,7 +281,7 @@ int main(void)
 
 	dac_channel_setup(dac_dev, &dac_ch2_cfg);
 
-	set_motor_current(2000); /* Set motor currents to ~1.5V/1.32 = 1136mA */
+	set_motor_current(2500); /* Set motor currents to ~2.5V/1.32 = 1900mA */
 
 	if (!gpio_is_ready_dt(&sleep_spec) || !gpio_is_ready_dt(&fault_spec))
 	{
@@ -308,7 +311,7 @@ int main(void)
 	{
 		/* Main loop can be used for background tasks or remain idle */
 		k_msleep(5000);
-		//printk("Main loop heartbeat...\n");
+		// printk("Main loop heartbeat...\n");
 	}
 
 	return 0;
